@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { UserRole } from '../types';
-import { Phone, Mail, Lock, User as UserIcon } from 'lucide-react';
+import { Phone, Mail, Lock, User as UserIcon, AlertCircle } from 'lucide-react';
 
 interface AuthProps {
   onLogin: () => void;
@@ -24,20 +24,27 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
 
     try {
       if (isRegistering) {
-        if (!whatsapp || whatsapp.length < 8) throw new Error('WhatsApp inválido.');
-        
+        if (!whatsapp || whatsapp.length < 10) {
+          throw new Error('Informe um WhatsApp válido com DDD.');
+        }
+        if (!name || name.length < 3) {
+          throw new Error('Nome muito curto.');
+        }
+
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
-          options: {
-            data: { full_name: name }
+          options: { 
+            data: { 
+              full_name: name,
+              whatsapp: whatsapp 
+            } 
           }
         });
 
         if (signUpError) throw signUpError;
-        if (!data.user) throw new Error('Falha no cadastro.');
+        if (!data?.user) throw new Error('Não foi possível criar o usuário.');
 
-        // Create profile in profiles table
         const { error: profileError } = await supabase
           .from('profiles')
           .insert({
@@ -45,108 +52,83 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             name,
             email,
             whatsapp,
-            role: email.toLowerCase().includes('admin') || email === 'upmarketingassessoria@gmail.com' ? UserRole.ADMIN : UserRole.USER,
+            role: email.toLowerCase().includes('admin') ? UserRole.ADMIN : UserRole.USER,
             balance: 0,
             withdrawable_balance: 0,
-            messages: []
+            created_at: new Date().toISOString()
           });
 
         if (profileError) throw profileError;
-        alert('Cadastro realizado! Verifique seu e-mail se necessário.');
+        
+        alert('Conta criada com sucesso!');
+        setIsRegistering(false);
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password
         });
         if (signInError) throw signInError;
+        onLogin();
       }
-      onLogin();
     } catch (err: any) {
-      setError(err.message || 'Erro na autenticação');
+      setError(err.message || 'Erro inesperado.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0A0A0B] relative overflow-hidden font-sans">
-      <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-[#10B981]/5 blur-[120px] rounded-full pointer-events-none"></div>
-      <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] bg-[#10B981]/5 blur-[100px] rounded-full pointer-events-none"></div>
-
+    <div className="min-h-screen flex items-center justify-center bg-[#0A0A0B] relative overflow-hidden">
+      <div className="absolute top-0 left-0 w-full h-full bg-[#10B981]/5 blur-[120px] pointer-events-none"></div>
+      
       <div className="w-full max-w-md px-6 relative z-10">
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-24 h-24 rounded-[2rem] bg-gradient-to-br from-[#10B981]/20 to-transparent p-1 mb-6 shadow-2xl shadow-[#10B981]/10">
-            <img 
-              src="https://raw.githubusercontent.com/stackblitz/stackblitz-images/main/bolao-app-logo.png" 
-              alt="Logo" 
-              className="w-full h-full object-cover rounded-[1.8rem] border border-white/10"
-            />
+        <div className="bg-[#141417] border border-[#27272A] rounded-[2.5rem] p-10 shadow-2xl">
+          <div className="text-center mb-8">
+             <h1 className="text-3xl font-black italic text-white uppercase tracking-tighter">
+               BOLÃO <span className="text-[#10B981]">PRO</span>
+             </h1>
+             <p className="text-[10px] text-white/20 uppercase font-bold tracking-widest mt-1">Acesso Premium</p>
           </div>
-          <h1 className="text-4xl font-black text-white tracking-tighter italic uppercase mb-1">
-            BOLÃO <span className="text-[#10B981]">APP</span>
-          </h1>
-          <p className="text-[#FAFAFA]/30 font-black uppercase tracking-[0.3em] text-[10px]">Cloud Powered Platform</p>
-        </div>
 
-        <div className="bg-[#141417]/80 backdrop-blur-xl border border-[#27272A] rounded-[2.5rem] p-8 md:p-10 shadow-2xl">
-          <div className="mb-8">
-            <h2 className="text-2xl font-black text-white italic uppercase tracking-tight">
-              {isRegistering ? 'Criar Conta' : 'Acessar Área VIP'}
-            </h2>
-          </div>
-          
-          <form onSubmit={handleAuth} className="space-y-5">
+          <form onSubmit={handleAuth} className="space-y-4">
             {isRegistering && (
               <>
-                <div className="space-y-1.5">
-                  <label className="block text-[10px] font-black uppercase text-[#FAFAFA]/40 ml-1">Nome Completo</label>
-                  <div className="relative">
-                    <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-[#0A0A0B] border border-[#27272A] rounded-2xl pl-12 pr-5 py-4 font-bold text-white outline-none focus:border-[#10B981] transition-all" placeholder="Seu nome" required />
-                    <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#FAFAFA]/10" />
-                  </div>
+                <div className="relative">
+                  <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                  <input type="text" placeholder="Nome Completo" value={name} onChange={e => setName(e.target.value)} className="w-full bg-[#0A0A0B] border border-[#27272A] p-4 pl-12 rounded-2xl text-white outline-none focus:border-[#10B981] transition-all text-sm font-medium" required />
                 </div>
-                <div className="space-y-1.5">
-                  <label className="block text-[10px] font-black uppercase text-[#10B981] ml-1">WhatsApp</label>
-                  <div className="relative">
-                    <input type="text" placeholder="(00) 00000-0000" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} className="w-full bg-[#0A0A0B] border border-[#10B981]/30 rounded-2xl pl-12 pr-5 py-4 font-bold text-white outline-none focus:border-[#10B981] transition-all" required />
-                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#10B981]/50" />
-                  </div>
+                <div className="relative">
+                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                  <input type="text" placeholder="WhatsApp (com DDD)" value={whatsapp} onChange={e => setWhatsapp(e.target.value)} className="w-full bg-[#0A0A0B] border border-[#27272A] p-4 pl-12 rounded-2xl text-white outline-none focus:border-[#10B981] transition-all text-sm font-medium" required />
                 </div>
               </>
             )}
-
-            <div className="space-y-1.5">
-              <label className="block text-[10px] font-black uppercase text-[#FAFAFA]/40 ml-1">E-mail</label>
-              <div className="relative">
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-[#0A0A0B] border border-[#27272A] rounded-2xl pl-12 pr-5 py-4 font-bold text-white outline-none focus:border-[#10B981] transition-all" placeholder="seu@email.com" required />
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#FAFAFA]/10" />
-              </div>
+            
+            <div className="relative">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+              <input type="email" placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-[#0A0A0B] border border-[#27272A] p-4 pl-12 rounded-2xl text-white outline-none focus:border-[#10B981] transition-all text-sm font-medium" required />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="block text-[10px] font-black uppercase text-[#FAFAFA]/40 ml-1">Senha</label>
-              <div className="relative">
-                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-[#0A0A0B] border border-[#27272A] rounded-2xl pl-12 pr-5 py-4 font-bold text-white outline-none focus:border-[#10B981] transition-all" placeholder="••••••••" required />
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#FAFAFA]/10" />
-              </div>
+            <div className="relative">
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+              <input type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-[#0A0A0B] border border-[#27272A] p-4 pl-12 rounded-2xl text-white outline-none focus:border-[#10B981] transition-all text-sm font-medium" required />
             </div>
-
+            
             {error && (
-              <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl">
-                <p className="text-red-400 text-[10px] font-black uppercase text-center">{error}</p>
+              <div className="flex items-center space-x-2 text-red-500 bg-red-500/10 p-4 rounded-xl text-[10px] font-black uppercase">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{error}</span>
               </div>
             )}
 
-            <button type="submit" disabled={loading} className="w-full bg-[#10B981] text-black font-black py-5 rounded-2xl hover:bg-[#0ea372] transition-all shadow-xl shadow-[#10B981]/10 mt-4 uppercase italic disabled:opacity-50">
-              {loading ? 'PROCESSANDO...' : isRegistering ? 'FINALIZAR CADASTRO' : 'ENTRAR NO SISTEMA'}
+            <button type="submit" disabled={loading} className="w-full bg-[#10B981] text-black font-black py-5 rounded-2xl hover:opacity-90 transition-all uppercase italic tracking-widest text-xs shadow-lg shadow-[#10B981]/10">
+              {loading ? 'SINCRONIZANDO...' : (isRegistering ? 'CADASTRAR' : 'ENTRAR')}
             </button>
           </form>
 
-          <div className="mt-8 pt-6 border-t border-[#27272A] text-center">
-            <button onClick={() => { setError(''); setIsRegistering(!isRegistering); }} className="text-[10px] font-black text-[#FAFAFA]/30 uppercase hover:text-[#10B981] tracking-widest">
-              {isRegistering ? 'Já tem conta? Faça Login' : 'Ainda não é membro? Cadastre-se'}
-            </button>
-          </div>
+          <button onClick={() => setIsRegistering(!isRegistering)} className="w-full text-center mt-8 text-[10px] text-white/20 uppercase font-black hover:text-[#10B981] transition-colors tracking-[0.2em]">
+            {isRegistering ? 'Logar' : 'Criar conta'}
+          </button>
         </div>
       </div>
     </div>

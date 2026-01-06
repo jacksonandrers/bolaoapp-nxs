@@ -37,11 +37,10 @@ export interface User {
   whatsapp: string;
   role: UserRole;
   balance: number;
-  withdrawable_balance: number; // Snake case for DB
-  created_at: number;
+  withdrawable_balance: number;
+  created_at: string | number;
   hidden_pool_ids?: string[];
   messages?: UserMessage[];
-  password?: string;
 }
 
 export interface Pool {
@@ -55,7 +54,7 @@ export interface Pool {
   options: string[];
   status: PoolStatus;
   winner_option?: string;
-  created_at: number;
+  created_at: string | number;
 }
 
 export interface Bet {
@@ -64,7 +63,7 @@ export interface Bet {
   user_id: string;
   option_selected: string;
   amount: number;
-  created_at: number;
+  created_at: string | number;
 }
 
 export interface Transaction {
@@ -74,18 +73,20 @@ export interface Transaction {
   amount: number;
   status: TransactionStatus;
   receipt_url?: string;
-  created_at: number;
+  created_at: string | number;
   reference_id?: string;
 }
 
+// Added missing interface AppConfig referenced in db.ts
 export interface AppConfig {
   pix_key: string;
   qr_code_url: string;
 }
 
+// Added missing interface SystemAlert referenced in db.ts
 export interface SystemAlert {
   id: string;
-  type: 'INFO' | 'WARNING' | 'CRITICAL';
+  type: string;
   message: string;
   timestamp: number;
   referenceId?: string;
