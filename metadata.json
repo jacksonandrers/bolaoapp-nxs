@@ -1,0 +1,7 @@
+{
+  "name": "Bolão App Real",
+  "description": "Plataforma de bolões profissional com Supabase.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
