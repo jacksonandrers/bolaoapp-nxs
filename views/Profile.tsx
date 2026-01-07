@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { User } from '../types';
@@ -11,7 +10,7 @@ interface ProfileProps {
 }
 
 const Profile: React.FC<ProfileProps> = ({ onUpdate, currentUser }) => {
-  const [name, setName] = useState(currentUser.name || '');
+  const [name, setName] = useState(currentUser.full_name || '');
   const [whatsapp, setWhatsapp] = useState(currentUser.whatsapp || '');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -26,7 +25,7 @@ const Profile: React.FC<ProfileProps> = ({ onUpdate, currentUser }) => {
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({ name, whatsapp })
+        .update({ full_name: name, whatsapp }) // Atualiza full_name
         .eq('id', currentUser.id);
 
       if (error) throw error;
@@ -53,10 +52,10 @@ const Profile: React.FC<ProfileProps> = ({ onUpdate, currentUser }) => {
 
       <div className="bg-[#141417] border border-[#27272A] rounded-[3rem] p-12 text-center shadow-2xl relative">
         <div className="w-24 h-24 rounded-full bg-[#10B981]/10 flex items-center justify-center text-[#10B981] text-4xl font-black mx-auto mb-6 italic border-2 border-[#10B981]/20">
-          {currentUser.name.charAt(0).toUpperCase()}
+          {currentUser.full_name?.charAt(0).toUpperCase() || 'U'}
         </div>
-        <h2 className="text-4xl font-black mb-3 italic text-white uppercase">{currentUser.name}</h2>
-        <p className="text-[#FAFAFA]/30 text-xs font-bold uppercase tracking-widest">{currentUser.email}</p>
+        <h2 className="text-4xl font-black mb-3 italic text-white uppercase">{currentUser.full_name || 'Usuário'}</h2>
+        <p className="text-[#FAFAFA]/30 text-xs font-black uppercase tracking-widest">{currentUser.email}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-10">

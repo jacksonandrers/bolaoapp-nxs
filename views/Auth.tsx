@@ -1,11 +1,10 @@
-
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase'; // Caminho consistente
 import { UserRole } from '../types';
 import { Phone, Mail, Lock, User as UserIcon, AlertCircle } from 'lucide-react';
 
 interface AuthProps {
-  onLogin: () => void;
+  onLogin: (profile: any) => void; // Recebe o profile
 }
 
 const Auth: React.FC<AuthProps> = ({ onLogin }) => {
@@ -23,53 +22,89 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     setLoading(true);
 
     try {
+      let profile: any = null;
+
       if (isRegistering) {
-        if (!whatsapp || whatsapp.length < 10) {
-          throw new Error('Informe um WhatsApp válido com DDD.');
-        }
         if (!name || name.length < 3) {
           throw new Error('Nome muito curto.');
+        }
+        if (!whatsapp || whatsapp.length < 10) {
+          throw new Error('Informe um WhatsApp válido.');
         }
 
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
-          options: { 
-            data: { 
-              full_name: name,
-              whatsapp: whatsapp 
-            } 
-          }
         });
 
         if (signUpError) throw signUpError;
-        if (!data?.user) throw new Error('Não foi possível criar o usuário.');
+        if (!data.user) throw new Error('Usuário não criado.');
 
         const { error: profileError } = await supabase
           .from('profiles')
           .insert({
             id: data.user.id,
-            name,
+            full_name: name,
             email,
             whatsapp,
-            role: email.toLowerCase().includes('admin') ? UserRole.ADMIN : UserRole.USER,
+            role: email.toLowerCase().includes('admin')
+              ? UserRole.ADMIN
+              : UserRole.USER,
             balance: 0,
             withdrawable_balance: 0,
-            created_at: new Date().toISOString()
           });
 
         if (profileError) throw profileError;
-        
-        alert('Conta criada com sucesso!');
-        setIsRegistering(false);
+
+        const { data: fetchedProfile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
+
+        profile = fetchedProfile;
+
       } else {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({
           email,
-          password
+          password,
         });
+
         if (signInError) throw signInError;
-        onLogin();
+        if (!data.user) throw new Error('Usuário não encontrado.');
+
+        const userId = data.user.id;
+
+        let { data: fetchedProfile, error: fetchError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
+
+        if (fetchError || !fetchedProfile) {
+          const { data: newProfile, error: createError } = await supabase
+            .from('profiles')
+            .insert({
+              id: userId,
+              email: data.user.email,
+              full_name: 'Usuário',
+              whatsapp: '',
+              role: UserRole.USER,
+              balance: 0,
+              withdrawable_balance: 0,
+            })
+            .select()
+            .single();
+
+          if (createError) throw createError;
+          fetchedProfile = newProfile;
+        }
+
+        profile = fetchedProfile;
       }
+
+      onLogin(profile); // Passa o profile completo
+
     } catch (err: any) {
       setError(err.message || 'Erro inesperado.');
     } finally {
@@ -78,56 +113,71 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0A0A0B] relative overflow-hidden">
-      <div className="absolute top-0 left-0 w-full h-full bg-[#10B981]/5 blur-[120px] pointer-events-none"></div>
-      
-      <div className="w-full max-w-md px-6 relative z-10">
-        <div className="bg-[#141417] border border-[#27272A] rounded-[2.5rem] p-10 shadow-2xl">
-          <div className="text-center mb-8">
-             <h1 className="text-3xl font-black italic text-white uppercase tracking-tighter">
-               BOLÃO <span className="text-[#10B981]">PRO</span>
-             </h1>
-             <p className="text-[10px] text-white/20 uppercase font-bold tracking-widest mt-1">Acesso Premium</p>
-          </div>
+    <div className="min-h-screen flex items-center justify-center bg-[#0A0A0B]">
+      <div className="w-full max-w-md px-6">
+        <div className="bg-[#141417] border border-[#27272A] rounded-3xl p-10">
+          <h1 className="text-center text-3xl font-black text-white mb-6">
+            BOLÃO <span className="text-[#10B981]">PRO</span>
+          </h1>
 
           <form onSubmit={handleAuth} className="space-y-4">
             {isRegistering && (
               <>
-                <div className="relative">
-                  <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
-                  <input type="text" placeholder="Nome Completo" value={name} onChange={e => setName(e.target.value)} className="w-full bg-[#0A0A0B] border border-[#27272A] p-4 pl-12 rounded-2xl text-white outline-none focus:border-[#10B981] transition-all text-sm font-medium" required />
-                </div>
-                <div className="relative">
-                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
-                  <input type="text" placeholder="WhatsApp (com DDD)" value={whatsapp} onChange={e => setWhatsapp(e.target.value)} className="w-full bg-[#0A0A0B] border border-[#27272A] p-4 pl-12 rounded-2xl text-white outline-none focus:border-[#10B981] transition-all text-sm font-medium" required />
-                </div>
+                <input
+                  placeholder="Nome completo"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full p-3 rounded bg-black text-white"
+                />
+                <input
+                  placeholder="WhatsApp"
+                  value={whatsapp}
+                  onChange={(e) => setWhatsapp(e.target.value)}
+                  className="w-full p-3 rounded bg-black text-white"
+                />
               </>
             )}
-            
-            <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
-              <input type="email" placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-[#0A0A0B] border border-[#27272A] p-4 pl-12 rounded-2xl text-white outline-none focus:border-[#10B981] transition-all text-sm font-medium" required />
-            </div>
 
-            <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
-              <input type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-[#0A0A0B] border border-[#27272A] p-4 pl-12 rounded-2xl text-white outline-none focus:border-[#10B981] transition-all text-sm font-medium" required />
-            </div>
-            
+            <input
+              type="email"
+              placeholder="E-mail"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full p-3 rounded bg-black text-white"
+              required
+            />
+
+            <input
+              type="password"
+              placeholder="Senha"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full p-3 rounded bg-black text-white"
+              required
+            />
+
             {error && (
-              <div className="flex items-center space-x-2 text-red-500 bg-red-500/10 p-4 rounded-xl text-[10px] font-black uppercase">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span>{error}</span>
-              </div>
+              <div className="text-red-500 text-sm">{error}</div>
             )}
 
-            <button type="submit" disabled={loading} className="w-full bg-[#10B981] text-black font-black py-5 rounded-2xl hover:opacity-90 transition-all uppercase italic tracking-widest text-xs shadow-lg shadow-[#10B981]/10">
-              {loading ? 'SINCRONIZANDO...' : (isRegistering ? 'CADASTRAR' : 'ENTRAR')}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-[#10B981] text-black font-bold py-3 rounded"
+            >
+              {loading
+                ? 'Processando...'
+                : isRegistering
+                ? 'Criar conta'
+                : 'Entrar'}
             </button>
           </form>
 
-          <button onClick={() => setIsRegistering(!isRegistering)} className="w-full text-center mt-8 text-[10px] text-white/20 uppercase font-black hover:text-[#10B981] transition-colors tracking-[0.2em]">
-            {isRegistering ? 'Logar' : 'Criar conta'}
+          <button
+            onClick={() => setIsRegistering(!isRegistering)}
+            className="mt-6 text-sm text-white/50 w-full text-center"
+          >
+            {isRegistering ? 'Já tenho conta' : 'Criar conta'}
           </button>
         </div>
       </div>

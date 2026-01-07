@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { 
@@ -49,16 +48,21 @@ const AdminDashboard: React.FC = () => {
 
   const fetchData = async () => {
     setLoading(true);
-    const { data: usersData } = await supabase.from('profiles').select('*');
-    const { data: poolsData } = await supabase.from('pools').select('*');
-    const { data: txData } = await supabase.from('transactions').select('*').order('created_at', { ascending: false });
-    const { count } = await supabase.from('bets').select('*', { count: 'exact', head: true });
+    try {
+      const { data: usersData } = await supabase.from('profiles').select('*');
+      const { data: poolsData } = await supabase.from('pools').select('*');
+      const { data: txData } = await supabase.from('transactions').select('*').order('created_at', { ascending: false });
+      const { count } = await supabase.from('bets').select('*', { count: 'exact', head: true });
 
-    if (usersData) setUsers(usersData as User[]);
-    if (poolsData) setPools(poolsData as Pool[]);
-    if (txData) setTransactions(txData as Transaction[]);
-    if (count !== null) setBetsCount(count);
-    setLoading(false);
+      if (usersData) setUsers(usersData as User[]);
+      if (poolsData) setPools(poolsData as Pool[]);
+      if (txData) setTransactions(txData as Transaction[]);
+      if (count !== null) setBetsCount(count);
+    } catch (e) {
+      console.error('Erro ao buscar dados:', e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -141,7 +145,7 @@ const AdminDashboard: React.FC = () => {
             onClick={() => setActiveTab(tab)} 
             className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-[#10B981] text-black' : 'text-[#FAFAFA]/40 hover:text-white'}`}
           >
-            {tab}
+            {tab === 'deposits' ? 'Depósitos' : tab === 'withdrawals' ? 'Saques' : tab === 'users' ? 'Usuários' : 'Histórico'}
           </button>
         ))}
       </div>
@@ -165,7 +169,7 @@ const AdminDashboard: React.FC = () => {
                     const u = users.find(user => user.id === tx.user_id);
                     return (
                       <tr key={tx.id} className="hover:bg-white/5 transition-colors">
-                        <td className="py-4 font-black text-white text-xs">{u?.name || 'Desconhecido'} <br/><span className="text-[9px] text-emerald-500">{u?.whatsapp}</span></td>
+                        <td className="py-4 font-black text-white text-xs">{u?.full_name || 'Desconhecido'} <br/><span className="text-[9px] text-emerald-500">{u?.whatsapp}</span></td>
                         <td className="py-4 font-black text-[#10B981]">R$ {tx.amount.toFixed(2)}</td>
                         <td className="py-4 text-center">
                            {tx.receipt_url && <button onClick={() => setPreviewImage(tx.receipt_url!)} className="text-[#10B981] text-[10px] font-black uppercase italic hover:underline">Ver Imagem</button>}
@@ -199,7 +203,7 @@ const AdminDashboard: React.FC = () => {
                  <tbody className="divide-y divide-white/5">
                    {users.map(u => (
                      <tr key={u.id} className="hover:bg-white/5 transition-colors">
-                       <td className="py-4 font-black text-white text-xs">{u.name} <br/><span className="text-[9px] text-white/40">{u.whatsapp}</span></td>
+                       <td className="py-4 font-black text-white text-xs">{u.full_name} <br/><span className="text-[9px] text-white/40">{u.whatsapp}</span></td>
                        <td className="py-4 text-emerald-500 font-bold text-xs">R$ {u.balance.toFixed(2)}</td>
                        <td className="py-4 text-orange-400 font-bold text-xs">R$ {u.withdrawable_balance.toFixed(2)}</td>
                        <td className="py-4 text-right">
@@ -220,7 +224,7 @@ const AdminDashboard: React.FC = () => {
         <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/98 animate-in fade-in">
            <div className="bg-[#141417] border border-[#27272A] p-10 rounded-[2.5rem] w-full max-w-md space-y-8 relative shadow-2xl">
               <button onClick={() => setEditingUser(null)} className="absolute top-6 right-6 text-white/20 hover:text-white"><X className="w-6 h-6" /></button>
-              <h4 className="text-xl font-black uppercase text-white italic text-center">Ajustar Saldo: {editingUser.name}</h4>
+              <h4 className="text-xl font-black uppercase text-white italic text-center">Ajustar Saldo: {editingUser.full_name}</h4>
               <div className="space-y-5">
                 <input type="number" step="0.01" value={editBalance} onChange={(e) => setEditBalance(e.target.value)} className="w-full bg-[#0A0A0B] border border-[#27272A] p-4 rounded-2xl text-white font-bold" placeholder="Saldo Jogo" />
                 <input type="number" step="0.01" value={editWithdrawable} onChange={(e) => setEditWithdrawable(e.target.value)} className="w-full bg-[#0A0A0B] border border-[#27272A] p-4 rounded-2xl text-white font-bold" placeholder="Saldo Saque" />

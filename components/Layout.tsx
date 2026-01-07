@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { User, UserRole } from '../types';
 import { 
@@ -49,8 +48,36 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
         md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="flex flex-col h-full p-4">
-          <div className="p-4 mb-8 flex items-center space-x-3">
-            <h1 className="text-[#10B981] text-xl font-black tracking-tight italic uppercase">Área VIP</h1>
+          {/* Header da Sidebar com nome e saldo */}
+          <div className="mb-8">
+            <h1 className="text-[#10B981] text-xl font-black tracking-tight italic uppercase mb-6">Área VIP</h1>
+            
+            {currentUser && (
+              <div className="space-y-3 p-4 bg-[#141417] border border-[#27272A] rounded-2xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-[#27272A] rounded-full flex items-center justify-center">
+                    <UserIcon className="w-6 h-6 text-[#10B981]" />
+                  </div>
+                  <div>
+                    <p className="text-white font-bold text-sm">
+                      {currentUser.full_name || 'Usuário'}
+                    </p>
+                    <p className="text-[#FAFAFA]/40 text-xs">
+                      {currentUser.email}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="pt-3 border-t border-[#27272A]">
+                  <p className="text-[#10B981] text-2xl font-black">
+                    R$ {Number(currentUser.balance || 0).toFixed(2)}
+                  </p>
+                  <p className="text-[#FAFAFA]/40 text-xs mt-1">
+                    Saldo disponível
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           <nav className="flex-1 space-y-1">
