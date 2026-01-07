@@ -18,45 +18,77 @@ const App: React.FC = () => {
   const [selectedPoolId, setSelectedPoolId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = useCallback(async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+  // 🔐 garante que o profile exista (sem duplicar)
+  const ensureProfileExists = async (user: any) => {
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
 
-      if (data) {
-        setCurrentUser(data as User);
-      }
+    if (existingProfile) return existingProfile;
+
+    const { data: newProfile, error } = await supabase
+      .from('profiles')
+      .insert({
+        id: user.id,
+        email: user.email,
+        full_name: 'Usuário',
+        role: UserRole.USER,
+        balance: 0,
+        withdrawable_balance: 0,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return newProfile;
+  };
+
+  const fetchProfile = useCallback(async (user: any) => {
+    try {
+      setLoading(true);
+      const profile = await ensureProfileExists(user);
+      setCurrentUser(profile as User);
     } catch (e) {
-      console.error("Erro ao carregar perfil:", e);
+      console.error('Erro ao carregar profile:', e);
+      setCurrentUser(null);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    // 1️⃣ sessão inicial
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session?.user) fetchProfile(session.user.id);
-      else setLoading(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session?.user) fetchProfile(session.user.id);
-      else {
-        setCurrentUser(null);
+      if (session?.user) {
+        fetchProfile(session.user);
+      } else {
         setLoading(false);
       }
     });
+
+    // 2️⃣ mudanças de auth
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+        if (session?.user) {
+          fetchProfile(session.user);
+        } else {
+          setCurrentUser(null);
+          setLoading(false);
+        }
+      }
+    );
 
     return () => subscription.unsubscribe();
   }, [fetchProfile]);
 
   const refreshUser = useCallback(() => {
-    if (session?.user) fetchProfile(session.user.id);
+    if (session?.user) {
+      fetchProfile(session.user);
+    }
   }, [session, fetchProfile]);
 
   if (loading) {
@@ -68,7 +100,7 @@ const App: React.FC = () => {
   }
 
   if (!session || !currentUser) {
-    return <Auth onLogin={refreshUser} />;
+    return <Auth onLogin={() => {}} />;
   }
 
   const handleLogout = async () => {
@@ -87,7 +119,7 @@ const App: React.FC = () => {
 
     switch (activeTab) {
       case 'home':
-        return <HomeView onPoolClick={(pool) => navigateToPool(pool.id)} onNavigate={(tab) => setActiveTab(tab)} currentUser={currentUser} />;
+        return <HomeView onPoolClick={(pool) => navigateToPool(pool.id)} onNavigate={setActiveTab} currentUser={currentUser} />;
       case 'my-bets':
         return <MyBets onPoolClick={(pool) => navigateToPool(pool.id)} currentUser={currentUser} />;
       case 'create-pool':
@@ -99,7 +131,7 @@ const App: React.FC = () => {
       case 'profile':
         return <Profile onUpdate={refreshUser} currentUser={currentUser} />;
       default:
-        return <HomeView onPoolClick={(pool) => navigateToPool(pool.id)} onNavigate={(tab) => setActiveTab(tab)} currentUser={currentUser} />;
+        return <HomeView onPoolClick={(pool) => navigateToPool(pool.id)} onNavigate={setActiveTab} currentUser={currentUser} />;
     }
   };
 
