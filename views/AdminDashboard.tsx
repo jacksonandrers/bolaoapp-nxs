@@ -20,7 +20,7 @@ const AdminDashboard: React.FC = () => {
     try {
       const { data } = await supabase
         .from('profiles')
-        .select('id, full_name, email, balance, withdrawable_balance, messages')
+        .select('id, full_name, email, balance, withdrawable_balance')
         .order('full_name');
 
       if (data) setUsers(data as User[]);
@@ -50,14 +50,9 @@ const AdminDashboard: React.FC = () => {
       };
 
       // Atualiza todos os usuários com a nova mensagem
-      const { error } = await supabase.rpc('broadcast_message', { message_text: broadcastText.trim() });
-
-      if (error) {
-        // Fallback manual se a function não existir
-        for (const user of users) {
-          const updatedMessages = [...(user.messages || []), newMessage];
-          await supabase.from('profiles').update({ messages: updatedMessages }).eq('id', user.id);
-        }
+      for (const user of users) {
+        const updatedMessages = [...(user.messages || []), newMessage];
+        await supabase.from('profiles').update({ messages: updatedMessages }).eq('id', user.id);
       }
 
       setBroadcastText('');
@@ -99,14 +94,14 @@ const AdminDashboard: React.FC = () => {
 
       {/* Caixa de Broadcast */}
       <div className="bg-[#141417] border border-[#27272A] rounded-2xl p-6">
-        <h3 className="text-lg font-black text-white mb-4">Enviar Mensagem para Todos os Usuários</h3>
+        <h3 className="text-lg font-black text-white mb-4">Enviar Mensagem para Todos</h3>
         <div className="flex gap-3">
           <input
             type="text"
             value={broadcastText}
             onChange={(e) => setBroadcastText(e.target.value)}
             placeholder="Digite a mensagem aqui..."
-            className="flex-1 bg-[#0A0A0B] border border-[#27272A] px-4 py-3 rounded-xl text-white placeholder-white/30"
+            className="flex-1 bg-[#0A0A0B] border border-[#27272A] px-4 py-3 rounded-xl text-white"
             disabled={sending}
           />
           <button
@@ -121,7 +116,7 @@ const AdminDashboard: React.FC = () => {
         {sentSuccess && (
           <div className="mt-4 flex items-center gap-2 text-[#10B981] font-bold">
             <CheckCircle className="w-5 h-5" />
-            Mensagem enviada com sucesso para todos!
+            Mensagem enviada para todos os usuários!
           </div>
         )}
       </div>
@@ -130,81 +125,3 @@ const AdminDashboard: React.FC = () => {
       <div className="bg-[#141417] border border-[#27272A] rounded-2xl overflow-hidden">
         <div className="p-8">
           <h3 className="text-xl font-black text-white mb-6">Lista de Usuários</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-[10px] font-black text-[#FAFAFA]/30 uppercase border-b border-[#27272A]">
-                  <th className="pb-4">Nome</th>
-                  <th className="pb-4">Email</th>
-                  <th className="pb-4">Saldo Jogo</th>
-                  <th className="pb-4">Saldo Saque</th>
-                  <th className="pb-4 text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#27272A]/50">
-                {users.map(user => (
-                  <tr key={user.id} className="hover:bg-white/5 transition">
-                    <td className="py-4 text-white font-bold text-sm">{user.full_name || 'Sem nome'}</td>
-                    <td className="py-4 text-white/80 text-sm">{user.email}</td>
-                    <td className="py-4 text-[#10B981] font-bold">R$ {user.balance?.toFixed(2) || '0.00'}</td>
-                    <td className="py-4 text-orange-400 font-bold">R$ {user.withdrawable_balance?.toFixed(2) || '0.00'}</td>
-                    <td className="py-4 text-right">
-                      <button
-                        onClick={() => {
-                          setEditingUser(user);
-                          setEditBalance(user.balance?.toString() || '0');
-                          setEditWithdrawable(user.withdrawable_balance?.toString() || '0');
-                        }}
-                        className="p-2 bg-white/10 text-white rounded-lg hover:bg-[#10B981] hover:text-black transition"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      {/* Modal de Edição */}
-      {editingUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90">
-          <div className="bg-[#141417] border border-[#27272A] p-8 rounded-2xl w-full max-w-md space-y-6">
-            <div className="flex justify-between items-center">
-              <h4 className="text-xl font-black text-white">Editar Saldo: {editingUser.full_name}</h4>
-              <button onClick={() => setEditingUser(null)} className="text-white/40 hover:text-white">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <input
-              type="number"
-              step="0.01"
-              value={editBalance}
-              onChange={(e) => setEditBalance(e.target.value)}
-              className="w-full bg-[#0A0A0B] border border-[#27272A] p-4 rounded-xl text-white font-bold"
-              placeholder="Saldo Jogo"
-            />
-            <input
-              type="number"
-              step="0.01"
-              value={editWithdrawable}
-              onChange={(e) => setEditWithdrawable(e.target.value)}
-              className="w-full bg-[#0A0A0B] border border-[#27272A] p-4 rounded-xl text-white font-bold"
-              placeholder="Saldo Saque"
-            />
-            <button
-              onClick={handleUpdateBalances}
-              className="w-full bg-[#10B981] text-black font-black py-4 rounded-xl uppercase"
-            >
-              Salvar Alterações
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default AdminDashboard;
