@@ -1,105 +1,74 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { 
-  TransactionStatus, 
-  Pool, 
-  User, 
-  TransactionType, 
-  PoolStatus,
-  Transaction
-} from '../types';
-import { 
-  Shield, 
-  Users, 
-  Trophy, 
-  Wallet, 
-  ArrowDownCircle, 
-  AlertTriangle,
-  Check,
-  X,
-  Edit,
-  QrCode,
-  Trash2,
-  Upload,
-  FileText,
-  Send,
-  Info
-} from 'lucide-react';
+import { User } from '../types';
+import { Shield, Send, CheckCircle, Edit, X } from 'lucide-react';
 
 const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('deposits');
   const [users, setUsers] = useState<User[]>([]);
-  const [pools, setPools] = useState<Pool[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [betsCount, setBetsCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  const [broadcastText, setBroadcastText] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sentSuccess, setSentSuccess] = useState(false);
+
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editBalance, setEditBalance] = useState('');
   const [editWithdrawable, setEditWithdrawable] = useState('');
-  const [selectedPoolDetail, setSelectedPoolDetail] = useState<Pool | null>(null);
-  
-  const [broadcastText, setBroadcastText] = useState('');
-  const [broadcastSuccess, setBroadcastSuccess] = useState(false);
 
-  const [pixKey, setPixKey] = useState('');
-  const [qrCodeUrl, setQrCodeUrl] = useState('');
-
-  const fetchData = async () => {
+  const fetchUsers = async () => {
     setLoading(true);
     try {
-      const { data: usersData } = await supabase.from('profiles').select('*');
-      const { data: poolsData } = await supabase.from('pools').select('*');
-      const { data: txData } = await supabase.from('transactions').select('*').order('created_at', { ascending: false });
-      const { count } = await supabase.from('bets').select('*', { count: 'exact', head: true });
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, balance, withdrawable_balance, messages')
+        .order('full_name');
 
-      if (usersData) setUsers(usersData as User[]);
-      if (poolsData) setPools(poolsData as Pool[]);
-      if (txData) setTransactions(txData as Transaction[]);
-      if (count !== null) setBetsCount(count);
+      if (data) setUsers(data as User[]);
     } catch (e) {
-      console.error('Erro ao buscar dados:', e);
+      console.error('Erro ao buscar usuários:', e);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
+    fetchUsers();
   }, []);
 
-  const metrics = useMemo(() => {
-    const activePoolsCount = pools.filter(p => p.status === PoolStatus.OPEN).length;
-    const pendingWithdrawals = transactions.filter(t => t.status === TransactionStatus.PENDING && t.type === TransactionType.WITHDRAWAL).length;
-    
-    return [
-      { label: 'Usuários', value: users.length, icon: Users, color: 'text-white' },
-      { label: 'Bolões Ativos', value: activePoolsCount, icon: Trophy, color: 'text-white' },
-      { label: 'Total Apostas', value: betsCount, icon: Wallet, color: 'text-[#10B981]' },
-      { label: 'Saques Pendentes', value: pendingWithdrawals, icon: ArrowDownCircle, color: 'text-orange-400' },
-    ];
-  }, [users, pools, transactions, betsCount]);
+  const handleBroadcast = async () => {
+    if (!broadcastText.trim()) return;
 
-  const handleActionConfirm = async (txId: string, approve: boolean) => {
-    const tx = transactions.find(t => t.id === txId);
-    if (!tx) return;
+    setSending(true);
+    setSentSuccess(false);
 
     try {
-      const newStatus = approve ? TransactionStatus.APPROVED : TransactionStatus.REJECTED;
-      
-      // Se aprovar depósito, aumenta saldo
-      if (approve && tx.type === TransactionType.DEPOSIT) {
-        const user = users.find(u => u.id === tx.user_id);
-        if (user) {
-          await supabase.from('profiles').update({ balance: user.balance + tx.amount }).eq('id', tx.user_id);
+      const newMessage = {
+        id: crypto.randomUUID(),
+        text: broadcastText.trim(),
+        timestamp: new Date().toISOString(),
+        read: false,
+      };
+
+      // Atualiza todos os usuários com a nova mensagem
+      const { error } = await supabase.rpc('broadcast_message', { message_text: broadcastText.trim() });
+
+      if (error) {
+        // Fallback manual se a function não existir
+        for (const user of users) {
+          const updatedMessages = [...(user.messages || []), newMessage];
+          await supabase.from('profiles').update({ messages: updatedMessages }).eq('id', user.id);
         }
       }
 
-      await supabase.from('transactions').update({ status: newStatus }).eq('id', txId);
-      fetchData();
+      setBroadcastText('');
+      setSentSuccess(true);
+      setTimeout(() => setSentSuccess(false), 4000);
+      fetchUsers();
     } catch (e) {
-      alert("Erro ao processar transação");
+      alert('Erro ao enviar mensagem');
+      console.error(e);
+    } finally {
+      setSending(false);
     }
   };
 
@@ -111,132 +80,127 @@ const AdminDashboard: React.FC = () => {
         withdrawable_balance: parseFloat(editWithdrawable) || 0
       }).eq('id', editingUser.id);
       setEditingUser(null);
-      fetchData();
+      fetchUsers();
     } catch (e) {
-      alert("Erro ao atualizar");
+      alert("Erro ao atualizar saldo");
     }
   };
 
-  if (loading) return <div className="py-20 text-center opacity-20 font-black uppercase italic">Carregando Dashboard...</div>;
+  if (loading) {
+    return <div className="py-20 text-center text-white/40 font-black uppercase italic">Carregando painel...</div>;
+  }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="flex items-center space-x-3">
-          <Shield className="w-8 h-8 text-white" />
-          <h2 className="text-3xl font-black text-white tracking-tighter uppercase italic">Administração Master</h2>
-        </div>
+    <div className="space-y-8 pb-20">
+      <div className="flex items-center space-x-4">
+        <Shield className="w-8 h-8 text-white" />
+        <h2 className="text-3xl font-black text-white uppercase italic">Painel Admin</h2>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {metrics.map((m, i) => (
-          <div key={i} className="bg-[#141417] border border-[#27272A] p-6 rounded-xl flex flex-col justify-between">
-            <m.icon className={`w-4 h-4 ${m.color}`} />
-            <p className="text-[10px] font-black text-[#FAFAFA]/40 uppercase mt-2">{m.label}</p>
-            <p className={`text-xl font-black ${m.color}`}>{m.value}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap gap-2 bg-[#141417] p-1 border border-[#27272A] rounded-xl w-fit">
-        {['deposits', 'withdrawals', 'users', 'history'].map(tab => (
-          <button 
-            key={tab} 
-            onClick={() => setActiveTab(tab)} 
-            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-[#10B981] text-black' : 'text-[#FAFAFA]/40 hover:text-white'}`}
+      {/* Caixa de Broadcast */}
+      <div className="bg-[#141417] border border-[#27272A] rounded-2xl p-6">
+        <h3 className="text-lg font-black text-white mb-4">Enviar Mensagem para Todos os Usuários</h3>
+        <div className="flex gap-3">
+          <input
+            type="text"
+            value={broadcastText}
+            onChange={(e) => setBroadcastText(e.target.value)}
+            placeholder="Digite a mensagem aqui..."
+            className="flex-1 bg-[#0A0A0B] border border-[#27272A] px-4 py-3 rounded-xl text-white placeholder-white/30"
+            disabled={sending}
+          />
+          <button
+            onClick={handleBroadcast}
+            disabled={sending || !broadcastText.trim()}
+            className="bg-[#10B981] text-black font-black px-6 py-3 rounded-xl hover:bg-[#0ea372] disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
           >
-            {tab === 'deposits' ? 'Depósitos' : tab === 'withdrawals' ? 'Saques' : tab === 'users' ? 'Usuários' : 'Histórico'}
+            <Send className="w-5 h-5" />
+            {sending ? 'Enviando...' : 'Enviar'}
           </button>
-        ))}
-      </div>
-
-      <div className="bg-[#141417] border border-[#27272A] rounded-2xl overflow-hidden min-h-[400px]">
-        {activeTab === 'deposits' && (
-          <div className="p-8">
-            <h3 className="text-lg font-black text-white italic uppercase mb-6">Depósitos Pendentes</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="text-[10px] font-black text-[#FAFAFA]/20 uppercase border-b border-[#27272A]">
-                    <th className="pb-4">Usuário</th>
-                    <th className="pb-4">Valor</th>
-                    <th className="pb-4 text-center">Recibo</th>
-                    <th className="pb-4 text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#27272A]/30">
-                  {transactions.filter(t => t.type === TransactionType.DEPOSIT && t.status === TransactionStatus.PENDING).map(tx => {
-                    const u = users.find(user => user.id === tx.user_id);
-                    return (
-                      <tr key={tx.id} className="hover:bg-white/5 transition-colors">
-                        <td className="py-4 font-black text-white text-xs">{u?.full_name || 'Desconhecido'} <br/><span className="text-[9px] text-emerald-500">{u?.whatsapp}</span></td>
-                        <td className="py-4 font-black text-[#10B981]">R$ {tx.amount.toFixed(2)}</td>
-                        <td className="py-4 text-center">
-                           {tx.receipt_url && <button onClick={() => setPreviewImage(tx.receipt_url!)} className="text-[#10B981] text-[10px] font-black uppercase italic hover:underline">Ver Imagem</button>}
-                        </td>
-                        <td className="py-4 text-right flex justify-end space-x-2">
-                          <button onClick={() => handleActionConfirm(tx.id, true)} className="p-2 bg-emerald-500/10 text-emerald-500 rounded-lg"><Check className="w-4 h-4" /></button>
-                          <button onClick={() => handleActionConfirm(tx.id, false)} className="p-2 bg-red-500/10 text-red-500 rounded-lg"><X className="w-4 h-4" /></button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'users' && (
-          <div className="p-8">
-             <h3 className="text-lg font-black text-white italic uppercase mb-6">Membros Registrados</h3>
-             <div className="overflow-x-auto">
-               <table className="w-full text-left">
-                 <thead>
-                   <tr className="text-[10px] font-black text-[#FAFAFA]/20 uppercase border-b border-white/5">
-                     <th className="pb-4">Nome</th>
-                     <th className="pb-4">S. Jogo</th>
-                     <th className="pb-4">S. Saque</th>
-                     <th className="pb-4 text-right">Ação</th>
-                   </tr>
-                 </thead>
-                 <tbody className="divide-y divide-white/5">
-                   {users.map(u => (
-                     <tr key={u.id} className="hover:bg-white/5 transition-colors">
-                       <td className="py-4 font-black text-white text-xs">{u.full_name} <br/><span className="text-[9px] text-white/40">{u.whatsapp}</span></td>
-                       <td className="py-4 text-emerald-500 font-bold text-xs">R$ {u.balance.toFixed(2)}</td>
-                       <td className="py-4 text-orange-400 font-bold text-xs">R$ {u.withdrawable_balance.toFixed(2)}</td>
-                       <td className="py-4 text-right">
-                         <button onClick={() => { setEditingUser(u); setEditBalance(u.balance.toString()); setEditWithdrawable(u.withdrawable_balance.toString()); }} className="p-3 bg-white/5 text-white rounded-xl hover:bg-[#10B981] hover:text-black transition-all">
-                           <Edit className="w-4 h-4" />
-                         </button>
-                       </td>
-                     </tr>
-                   ))}
-                 </tbody>
-               </table>
-             </div>
-          </div>
-        )}
-      </div>
-
-      {editingUser && (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/98 animate-in fade-in">
-           <div className="bg-[#141417] border border-[#27272A] p-10 rounded-[2.5rem] w-full max-w-md space-y-8 relative shadow-2xl">
-              <button onClick={() => setEditingUser(null)} className="absolute top-6 right-6 text-white/20 hover:text-white"><X className="w-6 h-6" /></button>
-              <h4 className="text-xl font-black uppercase text-white italic text-center">Ajustar Saldo: {editingUser.full_name}</h4>
-              <div className="space-y-5">
-                <input type="number" step="0.01" value={editBalance} onChange={(e) => setEditBalance(e.target.value)} className="w-full bg-[#0A0A0B] border border-[#27272A] p-4 rounded-2xl text-white font-bold" placeholder="Saldo Jogo" />
-                <input type="number" step="0.01" value={editWithdrawable} onChange={(e) => setEditWithdrawable(e.target.value)} className="w-full bg-[#0A0A0B] border border-[#27272A] p-4 rounded-2xl text-white font-bold" placeholder="Saldo Saque" />
-              </div>
-              <button onClick={handleUpdateBalances} className="w-full py-4 bg-[#10B981] text-black rounded-2xl font-black uppercase italic">SALVAR DADOS</button>
-           </div>
         </div>
-      )}
+        {sentSuccess && (
+          <div className="mt-4 flex items-center gap-2 text-[#10B981] font-bold">
+            <CheckCircle className="w-5 h-5" />
+            Mensagem enviada com sucesso para todos!
+          </div>
+        )}
+      </div>
 
-      {previewImage && (
-        <div className="fixed inset-0 z-[3000] flex items-center justify-center p-4 bg-black/98" onClick={() => setPreviewImage(null)}>
-           <img src={previewImage} className="max-w-full max-h-[85vh] rounded-2xl shadow-2xl border border-white/10" alt="Comprovante" />
+      {/* Lista de Usuários */}
+      <div className="bg-[#141417] border border-[#27272A] rounded-2xl overflow-hidden">
+        <div className="p-8">
+          <h3 className="text-xl font-black text-white mb-6">Lista de Usuários</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="text-[10px] font-black text-[#FAFAFA]/30 uppercase border-b border-[#27272A]">
+                  <th className="pb-4">Nome</th>
+                  <th className="pb-4">Email</th>
+                  <th className="pb-4">Saldo Jogo</th>
+                  <th className="pb-4">Saldo Saque</th>
+                  <th className="pb-4 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#27272A]/50">
+                {users.map(user => (
+                  <tr key={user.id} className="hover:bg-white/5 transition">
+                    <td className="py-4 text-white font-bold text-sm">{user.full_name || 'Sem nome'}</td>
+                    <td className="py-4 text-white/80 text-sm">{user.email}</td>
+                    <td className="py-4 text-[#10B981] font-bold">R$ {user.balance?.toFixed(2) || '0.00'}</td>
+                    <td className="py-4 text-orange-400 font-bold">R$ {user.withdrawable_balance?.toFixed(2) || '0.00'}</td>
+                    <td className="py-4 text-right">
+                      <button
+                        onClick={() => {
+                          setEditingUser(user);
+                          setEditBalance(user.balance?.toString() || '0');
+                          setEditWithdrawable(user.withdrawable_balance?.toString() || '0');
+                        }}
+                        className="p-2 bg-white/10 text-white rounded-lg hover:bg-[#10B981] hover:text-black transition"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Modal de Edição */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90">
+          <div className="bg-[#141417] border border-[#27272A] p-8 rounded-2xl w-full max-w-md space-y-6">
+            <div className="flex justify-between items-center">
+              <h4 className="text-xl font-black text-white">Editar Saldo: {editingUser.full_name}</h4>
+              <button onClick={() => setEditingUser(null)} className="text-white/40 hover:text-white">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <input
+              type="number"
+              step="0.01"
+              value={editBalance}
+              onChange={(e) => setEditBalance(e.target.value)}
+              className="w-full bg-[#0A0A0B] border border-[#27272A] p-4 rounded-xl text-white font-bold"
+              placeholder="Saldo Jogo"
+            />
+            <input
+              type="number"
+              step="0.01"
+              value={editWithdrawable}
+              onChange={(e) => setEditWithdrawable(e.target.value)}
+              className="w-full bg-[#0A0A0B] border border-[#27272A] p-4 rounded-xl text-white font-bold"
+              placeholder="Saldo Saque"
+            />
+            <button
+              onClick={handleUpdateBalances}
+              className="w-full bg-[#10B981] text-black font-black py-4 rounded-xl uppercase"
+            >
+              Salvar Alterações
+            </button>
+          </div>
         </div>
       )}
     </div>

@@ -1,17 +1,21 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { Pool, PoolStatus } from '../types';
+import { Pool, PoolStatus, UserMessage } from '../types';
 import PoolCard from '../components/PoolCard';
+import { Bell, X } from 'lucide-react';
+import { format } from 'date-fns';
 
 interface HomeViewProps {
   onPoolClick: (pool: Pool) => void;
   onNavigate: (tab: string) => void;
+  currentUser: any;
 }
 
-const HomeView: React.FC<HomeViewProps> = ({ onPoolClick, onNavigate }) => {
+const HomeView: React.FC<HomeViewProps> = ({ onPoolClick, onNavigate, currentUser }) => {
   const [activeFilter, setActiveFilter] = useState<PoolStatus>(PoolStatus.OPEN);
   const [pools, setPools] = useState<Pool[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
     const fetchPools = async () => {
@@ -32,6 +36,17 @@ const HomeView: React.FC<HomeViewProps> = ({ onPoolClick, onNavigate }) => {
     fetchPools();
   }, []);
 
+  const messages = (currentUser?.messages as UserMessage[]) || [];
+  const unreadCount = messages.filter(m => !m.read).length;
+
+  const handleReadMessage = async (messageId: string) => {
+    if (!currentUser) return;
+    const updatedMessages = messages.map(m => m.id === messageId ? { ...m, read: true } : m);
+    await supabase.from('profiles').update({ messages: updatedMessages }).eq('id', currentUser.id);
+    // Atualiza local sem reload
+    currentUser.messages = updatedMessages;
+  };
+
   const filteredPools = useMemo(() => {
     return pools.filter(p => p.status === activeFilter);
   }, [pools, activeFilter]);
@@ -42,6 +57,49 @@ const HomeView: React.FC<HomeViewProps> = ({ onPoolClick, onNavigate }) => {
 
   return (
     <div className="space-y-8">
+      {/* Sininho no canto superior direito */}
+      <div className="flex justify-end mb-4">
+        <div className="relative">
+          <button 
+            onClick={() => setShowNotifications(!showNotifications)}
+            className="p-3 bg-[#141417] border border-[#27272A] rounded-xl text-white/60 hover:text-[#10B981] transition relative"
+          >
+            <Bell className="w-6 h-6" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-[#10B981] text-black text-xs font-black rounded-full flex items-center justify-center">
+                {unreadCount}
+              </span>
+            )}
+          </button>
+
+          {showNotifications && (
+            <div className="absolute right-0 mt-2 w-96 bg-[#141417] border border-[#27272A] rounded-2xl shadow-2xl z-50 overflow-hidden">
+              <div className="p-4 border-b border-[#27272A] flex justify-between items-center">
+                <h4 className="text-white font-bold">Notificações</h4>
+                <button onClick={() => setShowNotifications(false)} className="text-white/40 hover:text-white">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="max-h-96 overflow-y-auto p-4 space-y-3">
+                {messages.length > 0 ? messages.map(msg => (
+                  <div 
+                    key={msg.id} 
+                    onClick={() => handleReadMessage(msg.id)}
+                    className={`p-4 rounded-xl cursor-pointer transition ${msg.read ? 'bg-[#0A0A0B]' : 'bg-[#10B981]/10 border border-[#10B981]/20'}`}
+                  >
+                    <p className="text-xs text-white/40">{format(new Date(msg.timestamp), "dd/MM/yyyy HH:mm")}</p>
+                    <p className="text-white font-medium mt-1">{msg.text}</p>
+                  </div>
+                )) : (
+                  <p className="text-center text-white/40 py-8">Nenhuma mensagem</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Lista de Bolões */}
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-black text-white">Bolões</h1>
         <div className="flex gap-2">

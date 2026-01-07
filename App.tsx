@@ -87,7 +87,7 @@ const App: React.FC = () => {
 
     switch (activeTab) {
       case 'home':
-        return <HomeView onPoolClick={(pool) => navigateToPool(pool.id)} onNavigate={(tab) => setActiveTab(tab)} />;
+        return <HomeView onPoolClick={(pool) => navigateToPool(pool.id)} onNavigate={(tab) => setActiveTab(tab)} currentUser={currentUser} />;
       case 'my-bets':
         return <MyBets onPoolClick={(pool) => navigateToPool(pool.id)} currentUser={currentUser} />;
       case 'create-pool':
@@ -99,7 +99,7 @@ const App: React.FC = () => {
       case 'profile':
         return <Profile onUpdate={refreshUser} currentUser={currentUser} />;
       default:
-        return <HomeView onPoolClick={(pool) => navigateToPool(pool.id)} onNavigate={(tab) => setActiveTab(tab)} />;
+        return <HomeView onPoolClick={(pool) => navigateToPool(pool.id)} onNavigate={(tab) => setActiveTab(tab)} currentUser={currentUser} />;
     }
   };
 
