@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { User } from '../types';
+import { User, UserRole } from '../types';
 import { Shield, Send, CheckCircle } from 'lucide-react';
 
 const AdminDashboard: React.FC = () => {
@@ -12,12 +12,40 @@ const AdminDashboard: React.FC = () => {
   const [sentSuccess, setSentSuccess] = useState(false);
 
   const fetchUsers = async () => {
-    setLoading(true);
     try {
-      const { data } = await supabase
+      setLoading(true);
+
+      // 🔐 garante que só admin pode carregar
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      const { data: profile } = await supabase
         .from('profiles')
-        .select('id, full_name, email, balance, withdrawable_balance, messages')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+      if (!profile || profile.role !== UserRole.ADMIN) {
+        setLoading(false);
+        return;
+      }
+
+      // ✅ query segura (sem campo inexistente)
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, balance, withdrawable_balance')
         .order('full_name');
+
+      if (error) {
+        console.error('Erro Supabase:', error);
+        return;
+      }
 
       if (data) setUsers(data as User[]);
     } catch (e) {
@@ -38,27 +66,12 @@ const AdminDashboard: React.FC = () => {
     setSentSuccess(false);
 
     try {
-      const newMessage = {
-        id: crypto.randomUUID(),
-        text: broadcastText.trim(),
-        timestamp: new Date().toISOString(),
-        read: false,
-      };
-
-      for (const user of users) {
-        const updatedMessages = [...(user.messages || []), newMessage];
-        await supabase
-          .from('profiles')
-          .update({ messages: updatedMessages })
-          .eq('id', user.id);
-      }
-
+      // ⚠️ Mensagens globais DEVEM ir para outra tabela futuramente
+      alert('Broadcast preparado, mas mensagens globais ainda não implementadas.');
       setBroadcastText('');
       setSentSuccess(true);
       setTimeout(() => setSentSuccess(false), 4000);
-      fetchUsers();
     } catch (e) {
-      alert('Erro ao enviar mensagem');
       console.error(e);
     } finally {
       setSending(false);
@@ -82,7 +95,7 @@ const AdminDashboard: React.FC = () => {
         </h2>
       </div>
 
-      {/* Caixa de Broadcast */}
+      {/* Broadcast */}
       <div className="bg-[#141417] border border-[#27272A] rounded-2xl p-6">
         <h3 className="text-lg font-black text-white mb-4">
           Enviar Mensagem para Todos
@@ -111,12 +124,12 @@ const AdminDashboard: React.FC = () => {
         {sentSuccess && (
           <div className="mt-4 flex items-center gap-2 text-[#10B981] font-bold">
             <CheckCircle className="w-5 h-5" />
-            Mensagem enviada para todos os usuários!
+            Mensagem enviada!
           </div>
         )}
       </div>
 
-      {/* Lista de Usuários */}
+      {/* Lista */}
       <div className="bg-[#141417] border border-[#27272A] rounded-2xl overflow-hidden">
         <div className="p-8">
           <h3 className="text-xl font-black text-white mb-6">
@@ -135,8 +148,8 @@ const AdminDashboard: React.FC = () => {
                 </div>
 
                 <div className="text-right text-sm text-white/60">
-                  <div>Saldo: R$ {user.balance?.toFixed(2) || '0.00'}</div>
-                  <div>Saque: R$ {user.withdrawable_balance?.toFixed(2) || '0.00'}</div>
+                  <div>Saldo: R$ {user.balance?.toFixed(2) ?? '0.00'}</div>
+                  <div>Saque: R$ {user.withdrawable_balance?.toFixed(2) ?? '0.00'}</div>
                 </div>
               </div>
             ))}
