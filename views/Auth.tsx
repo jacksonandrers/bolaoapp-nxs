@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabase'; // Caminho consistente
+import { supabase } from '../lib/supabase';
 import { UserRole } from '../types';
 import { Phone, Mail, Lock, User as UserIcon, AlertCircle } from 'lucide-react';
 
 interface AuthProps {
-  onLogin: (profile: any) => void; // Recebe o profile
+  onLogin: (profile: any) => void;
 }
 
 const Auth: React.FC<AuthProps> = ({ onLogin }) => {
@@ -16,6 +16,41 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Função reutilizável para garantir que o profile exista
+  const ensureProfileExists = async (userId: string, userEmail: string, extraData?: any) => {
+    // Primeiro tenta buscar
+    const { data: existingProfile, error: fetchError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (existingProfile) {
+      return existingProfile;
+    }
+
+    // Se não existir (ou erro de "no row"), cria com upsert
+    const profileData = {
+      id: userId,
+      email: userEmail,
+      full_name: extraData?.full_name || 'Usuário',
+      whatsapp: extraData?.whatsapp || '',
+      role: extraData?.role || UserRole.USER,
+      balance: 0,
+      withdrawable_balance: 0,
+    };
+
+    const { data: newProfile, error: upsertError } = await supabase
+      .from('profiles')
+      .upsert(profileData, { onConflict: 'id' })
+      .select()
+      .single();
+
+    if (upsertError) throw upsertError;
+
+    return newProfile;
+  };
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -25,88 +60,41 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
       let profile: any = null;
 
       if (isRegistering) {
-        if (!name || name.length < 3) {
-          throw new Error('Nome muito curto.');
-        }
-        if (!whatsapp || whatsapp.length < 10) {
-          throw new Error('Informe um WhatsApp válido.');
-        }
+        // Validações simples
+        if (!name || name.trim().length < 3) throw new Error('Nome muito curto.');
+        if (!whatsapp || whatsapp.trim().length < 10) throw new Error('WhatsApp inválido.');
 
-        const { data, error: signUpError } = await supabase.auth.signUp({
+        const { data: authData, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
         });
 
         if (signUpError) throw signUpError;
-        if (!data.user) throw new Error('Usuário não criado.');
+        if (!authData.user) throw new Error('Falha ao criar usuário.');
 
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: data.user.id,
-            full_name: name,
-            email,
-            whatsapp,
-            role: email.toLowerCase().includes('admin')
-              ? UserRole.ADMIN
-              : UserRole.USER,
-            balance: 0,
-            withdrawable_balance: 0,
-          });
-
-        if (profileError) throw profileError;
-
-        const { data: fetchedProfile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', data.user.id)
-          .single();
-
-        profile = fetchedProfile;
-
+        // Cria profile completo no cadastro
+        profile = await ensureProfileExists(authData.user.id, email, {
+          full_name: name.trim(),
+          whatsapp: whatsapp.trim(),
+          role: email.toLowerCase().includes('admin') ? UserRole.ADMIN : UserRole.USER,
+        });
       } else {
-        const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        // Login normal
+        const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
 
         if (signInError) throw signInError;
-        if (!data.user) throw new Error('Usuário não encontrado.');
+        if (!authData.user) throw new Error('Usuário não encontrado.');
 
-        const userId = data.user.id;
-
-        let { data: fetchedProfile, error: fetchError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .single();
-
-        if (fetchError || !fetchedProfile) {
-          const { data: newProfile, error: createError } = await supabase
-            .from('profiles')
-            .insert({
-              id: userId,
-              email: data.user.email,
-              full_name: 'Usuário',
-              whatsapp: '',
-              role: UserRole.USER,
-              balance: 0,
-              withdrawable_balance: 0,
-            })
-            .select()
-            .single();
-
-          if (createError) throw createError;
-          fetchedProfile = newProfile;
-        }
-
-        profile = fetchedProfile;
+        // Garante profile (cria se for primeiro login)
+        profile = await ensureProfileExists(authData.user.id, authData.user.email!);
       }
 
-      onLogin(profile); // Passa o profile completo
-
+      onLogin(profile); // Passa o profile pro componente pai
     } catch (err: any) {
-      setError(err.message || 'Erro inesperado.');
+      setError(err.message || 'Erro inesperado. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -128,12 +116,14 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full p-3 rounded bg-black text-white"
+                  required
                 />
                 <input
-                  placeholder="WhatsApp"
+                  placeholder="WhatsApp (somente números)"
                   value={whatsapp}
-                  onChange={(e) => setWhatsapp(e.target.value)}
+                  onChange={(e) => setWhatsapp(e.target.value.replace(/\D/g, ''))}
                   className="w-full p-3 rounded bg-black text-white"
+                  required
                 />
               </>
             )}
@@ -157,25 +147,25 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             />
 
             {error && (
-              <div className="text-red-500 text-sm">{error}</div>
+              <div className="text-red-500 text-sm text-center">{error}</div>
             )}
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#10B981] text-black font-bold py-3 rounded"
+              className="w-full bg-[#10B981] hover:bg-[#0d9a6e] transition text-black font-bold py-3 rounded"
             >
-              {loading
-                ? 'Processando...'
-                : isRegistering
-                ? 'Criar conta'
-                : 'Entrar'}
+              {loading ? 'Processando...' : isRegistering ? 'Criar conta' : 'Entrar'}
             </button>
           </form>
 
           <button
-            onClick={() => setIsRegistering(!isRegistering)}
-            className="mt-6 text-sm text-white/50 w-full text-center"
+            type="button"
+            onClick={() => {
+              setIsRegistering(!isRegistering);
+              setError('');
+            }}
+            className="mt-6 text-sm text-white/50 w-full text-center hover:text-white/80 transition"
           >
             {isRegistering ? 'Já tenho conta' : 'Criar conta'}
           </button>

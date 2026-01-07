@@ -8,8 +8,7 @@ import {
   User as UserIcon, 
   Shield, 
   LogOut,
-  Menu,
-  MessageCircle
+  Menu
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -33,51 +32,23 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
   ];
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0A0A0B]">
+    <div className="flex h-screen bg-[#0A0A0B]">
       {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
         <div 
-          className="fixed inset-0 bg-black/80 z-40 md:hidden backdrop-blur-sm" 
+          className="fixed inset-0 bg-black/80 z-40 md:hidden" 
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <aside className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-[#0A0A0B] border-r border-[#27272A] transform transition-transform duration-300 ease-in-out
+        fixed inset-y-0 left-0 z-50 w-64 bg-[#0A0A0B] border-r border-[#27272A] transform transition-transform duration-300
         md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="flex flex-col h-full p-4">
-          {/* Header da Sidebar com nome e saldo */}
-          <div className="mb-8">
-            <h1 className="text-[#10B981] text-xl font-black tracking-tight italic uppercase mb-6">Área VIP</h1>
-            
-            {currentUser && (
-              <div className="space-y-3 p-4 bg-[#141417] border border-[#27272A] rounded-2xl">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-[#27272A] rounded-full flex items-center justify-center">
-                    <UserIcon className="w-6 h-6 text-[#10B981]" />
-                  </div>
-                  <div>
-                    <p className="text-white font-bold text-sm">
-                      {currentUser.full_name || 'Usuário'}
-                    </p>
-                    <p className="text-[#FAFAFA]/40 text-xs">
-                      {currentUser.email}
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="pt-3 border-t border-[#27272A]">
-                  <p className="text-[#10B981] text-2xl font-black">
-                    R$ {Number(currentUser.balance || 0).toFixed(2)}
-                  </p>
-                  <p className="text-[#FAFAFA]/40 text-xs mt-1">
-                    Saldo disponível
-                  </p>
-                </div>
-              </div>
-            )}
+          <div className="p-4 mb-8 text-center">
+            <h1 className="text-2xl font-black text-[#10B981]">BOLÃO DA TURMADA</h1>
           </div>
 
           <nav className="flex-1 space-y-1">
@@ -94,34 +65,25 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
                     setIsSidebarOpen(false);
                   }}
                   className={`
-                    w-full flex items-center px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200
+                    w-full flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-all
                     ${isActive 
-                      ? 'bg-[#10B981]/10 text-[#10B981] border border-[#10B981]/10' 
-                      : 'text-[#FAFAFA]/40 hover:text-[#FAFAFA] hover:bg-[#141417]'}
+                      ? 'bg-[#10B981] text-black' 
+                      : 'text-[#FAFAFA]/60 hover:text-[#FAFAFA] hover:bg-[#141417]'}
                   `}
                 >
-                  <item.icon className={`w-5 h-5 mr-4 ${isActive ? 'text-[#10B981]' : 'text-[#FAFAFA]/40'}`} />
+                  <item.icon className="w-5 h-5 mr-3" />
                   {item.label}
                 </button>
               );
             })}
           </nav>
 
-          <div className="mt-auto space-y-2 pt-4 border-t border-[#27272A]">
-            <a
-              href="https://wa.me/5562986216877"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full flex items-center px-4 py-3 text-sm font-bold text-[#10B981] bg-[#10B981]/10 border border-[#10B981]/10 rounded-xl hover:bg-[#10B981]/20 transition-all"
-            >
-              <MessageCircle className="w-5 h-5 mr-4" />
-              Suporte
-            </a>
+          <div className="mt-auto pt-4 border-t border-[#27272A]">
             <button
               onClick={onLogout}
-              className="w-full flex items-center px-4 py-3 text-sm font-bold text-red-500/40 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
+              className="w-full flex items-center px-4 py-3 text-sm font-medium text-red-500/60 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
             >
-              <LogOut className="w-5 h-5 mr-4" />
+              <LogOut className="w-5 h-5 mr-3" />
               Sair
             </button>
           </div>
@@ -129,18 +91,18 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#0A0A0B]">
+      <main className="flex-1 flex flex-col overflow-hidden">
         {/* Mobile Header */}
         <header className="h-16 flex items-center justify-between px-6 bg-[#0A0A0B] border-b border-[#27272A] md:hidden">
-          <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-[#FAFAFA]">
+          <button onClick={() => setIsSidebarOpen(true)} className="text-[#FAFAFA]">
             <Menu className="w-6 h-6" />
           </button>
-          <h1 className="text-lg font-black text-[#10B981] italic uppercase tracking-tighter">Bolão App</h1>
+          <h1 className="text-lg font-bold text-[#10B981]">Bolão da Turmada</h1>
           <div className="w-8" />
         </header>
 
-        <div className="flex-1 overflow-y-auto px-6 py-8 md:px-10 md:py-10">
-          <div className="max-w-7xl mx-auto">
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="max-w-6xl mx-auto">
             {children}
           </div>
         </div>
